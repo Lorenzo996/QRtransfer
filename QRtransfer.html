@@ -160,7 +160,7 @@
           const chunk_size = 250;
           let qrcode_object = "";
           let transfer_data = null;
-          let transfer_chunk_count = 0;
+          const transfer_chunk_count = ref(0);
           let next_chunk_index = 0;
           let transfer_session = 0;
           let transfer_preparing = false;
@@ -179,7 +179,7 @@
             transfer_session++;
             selected_file.value = event.target.files?.[0] || null;
             transfer_data = null;
-            transfer_chunk_count = 0;
+            transfer_chunk_count.value = 0;
             next_chunk_index = 0;
             transfer_preparing = false;
             is_paused.value = false;
@@ -196,16 +196,16 @@
           };
 
           const seek_frame = () => {
-            if (!is_paused.value || !transfer_chunk_count || !transfer_data) return;
-            const index = Math.max(0, Math.min(transfer_chunk_count - 1, Number(current_frame_index.value) || 0));
+            if (!is_paused.value || !transfer_chunk_count.value || !transfer_data) return;
+            const index = Math.max(0, Math.min(transfer_chunk_count.value - 1, Number(current_frame_index.value) || 0));
             current_frame_index.value = index;
             next_chunk_index = index;
             const start = index * chunk_size;
             const chunk = transfer_data.subarray(start, start + chunk_size);
             qrcode_object.clear();
             qrcode_object.makeCode(encode_data(index, chunk));
-            transfer_percent.value = Math.floor(((index + 1) / transfer_chunk_count) * 100);
-            user_message.value = `Paused at QR ${index + 1}/${transfer_chunk_count}. Press Start / Play to continue.`;
+            transfer_percent.value = Math.floor(((index + 1) / transfer_chunk_count.value) * 100);
+            user_message.value = `Paused at QR ${index + 1}/${transfer_chunk_count.value}. Press Start / Play to continue.`;
           };
 
           const stop_transfer = () => {
@@ -214,7 +214,7 @@
             is_paused.value = false;
             selected_file.value = null;
             transfer_data = null;
-            transfer_chunk_count = 0;
+            transfer_chunk_count.value = 0;
             next_chunk_index = 0;
             transfer_preparing = false;
             transfer_percent.value = 0;
@@ -233,7 +233,7 @@
             if (is_paused.value && (transfer_data || transfer_preparing)) {
               is_paused.value = false;
               is_transferring.value = true;
-              user_message.value = `Resuming Chunk ${next_chunk_index}/${transfer_chunk_count} ...`;
+              user_message.value = `Resuming Chunk ${next_chunk_index}/${transfer_chunk_count.value} ...`;
               return;
             }
 
@@ -246,7 +246,7 @@
                 const file = selected_file.value;
                 transfer_data = pako.gzip(await file.arrayBuffer(), { level: 9 });
                 if (session !== transfer_session) return;
-                transfer_chunk_count = Math.ceil(transfer_data.length / chunk_size);
+                transfer_chunk_count.value = Math.ceil(transfer_data.length / chunk_size);
                 next_chunk_index = 0;
                 current_frame_index.value = 0;
               }
@@ -269,13 +269,13 @@
                 return session === transfer_session;
               };
 
-              const file_metadata = { name: selected_file.value.name, chunks: transfer_chunk_count };
+              const file_metadata = { name: selected_file.value.name, chunks: transfer_chunk_count.value };
               qrcode_object.clear();
               qrcode_object.makeCode(JSON.stringify(file_metadata));
               user_message.value = "Starting data transfer in a few seconds ...";
               if (!(await wait_while_playing(1000))) return;
 
-              while (next_chunk_index < transfer_chunk_count && session === transfer_session) {
+              while (next_chunk_index < transfer_chunk_count.value && session === transfer_session) {
                 if (!(await wait_until_playing())) return;
                 if (!(await wait_while_playing(50))) return;
                 const index = next_chunk_index;
@@ -284,9 +284,9 @@
                 const chunk = transfer_data.subarray(start, start + chunk_size);
                 qrcode_object.clear();
                 qrcode_object.makeCode(encode_data(index, chunk));
-                user_message.value = `Transferring Chunk ${index + 1}/${transfer_chunk_count} ...`;
+                user_message.value = `Transferring Chunk ${index + 1}/${transfer_chunk_count.value} ...`;
                 next_chunk_index++;
-                transfer_percent.value = Math.floor((next_chunk_index / transfer_chunk_count) * 100);
+                transfer_percent.value = Math.floor((next_chunk_index / transfer_chunk_count.value) * 100);
               }
 
               if (session === transfer_session) {
@@ -327,6 +327,7 @@
             is_paused,
             selected_file,
             transfer_percent,
+            transfer_chunk_count,
             current_frame_index,
             select_file,
             seek_frame,
