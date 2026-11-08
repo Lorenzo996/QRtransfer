@@ -20,12 +20,13 @@
       .qr-code-surface { position: relative; padding: 8px; border-radius: 8px; background: #fff; }
       #qrcode { display: flex; justify-content: center; align-items: center; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
       #qrcode canvas, #qrcode img { display: block; width: clamp(160px, min(70vw, 38vh), 360px) !important; height: auto !important; }
-      .qr-expand-hint { position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; color: #fff; background: rgb(17 24 39 / 72%); pointer-events: none; }
-      .qr-stage.qr-expanded { position: fixed; inset: 0; z-index: 1100; width: auto; height: 100vh; height: 100dvh; align-items: center; padding: max(56px, calc(env(safe-area-inset-top) + 48px)) 16px max(24px, env(safe-area-inset-bottom)); background: rgb(17 24 39 / 96%); }
+      .qr-stage.qr-expanded { position: fixed; inset: 0; z-index: 1100; width: auto; height: 100vh; height: 100dvh; flex-direction: column; justify-content: flex-start; align-items: center; gap: 12px; overflow-y: auto; padding: max(56px, calc(env(safe-area-inset-top) + 48px)) 16px max(16px, env(safe-area-inset-bottom)); background: rgb(17 24 39 / 96%); }
       .qr-expanded .qr-code-surface { padding: 12px; }
       .qr-expanded #qrcode { cursor: zoom-out; }
-      .qr-expanded #qrcode canvas, .qr-expanded #qrcode img { width: min(88vw, 78vh, 640px) !important; max-width: calc(100vw - 56px); }
-      .qr-expanded .qr-expand-hint { display: none; }
+      .qr-expanded #qrcode canvas, .qr-expanded #qrcode img { width: clamp(144px, min(88vw, calc(100dvh - 260px)), 640px) !important; max-width: calc(100vw - 56px); }
+      .qr-overlay-controls { width: min(100%, 440px); color: #fff; }
+      .qr-overlay-controls .qr-overlay-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
+      .qr-overlay-controls button { border-color: rgb(255 255 255 / 65%); color: #fff; background: rgb(31 41 55 / 90%); }
       .qr-close { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); padding: 8px 12px; border: 1px solid rgb(255 255 255 / 50%); border-radius: 6px; color: #fff; background: rgb(31 41 55 / 90%); }
       @media (max-width: 480px) {
         .coverage-grid { grid-auto-columns: 2px; }
@@ -101,11 +102,29 @@
           <div class="qr-code-surface">
             <button id="qrcode" type="button" :aria-label="is_qr_expanded ? 'Close expanded QR code' : 'Expand QR code'" :aria-expanded="is_qr_expanded ? 'true' : 'false'"
               v-on:click="toggle_qr_expanded"></button>
-            <span class="qr-expand-hint" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3" />
-              </svg>
-            </span>
+          </div>
+          <div v-if="is_qr_expanded" class="qr-overlay-controls" v-on:click.stop>
+            <div class="flex justify-between items-center text-sm mb-1">
+              <label for="frame-seek-overlay">QR frame</label>
+              <span>{{transfer_chunk_count ? current_frame_index + 1 : 0}} / {{transfer_chunk_count}}</span>
+            </div>
+            <input id="frame-seek-overlay" type="range" class="w-full accent-blue-400"
+              min="0" :max="Math.max(0, transfer_chunk_count - 1)" step="1"
+              v-model.number="current_frame_index" v-on:change="seek_frame"
+              :disabled="!is_paused || !transfer_chunk_count"
+              aria-label="Select the QR frame to resume from" />
+            <div class="qr-overlay-buttons">
+              <button v-on:click="start_transfer" :disabled="!selected_file || is_transferring"
+                class="p-2 border-2 rounded disabled:opacity-40 disabled:cursor-not-allowed">Start / Play</button>
+              <button v-on:click="pause_transfer" :disabled="!is_transferring"
+                class="p-2 border-2 rounded disabled:opacity-40 disabled:cursor-not-allowed">Pause</button>
+              <button v-on:click="stop_transfer" :disabled="!selected_file"
+                class="p-2 border-2 rounded disabled:opacity-40 disabled:cursor-not-allowed">Stop</button>
+              <label class="flex items-center gap-2 px-2 text-sm whitespace-nowrap">
+                <input type="checkbox" v-model="repeat_enabled" v-on:change="toggle_repeat" />
+                Repeat
+              </label>
+            </div>
           </div>
           <button v-if="is_qr_expanded" type="button" class="qr-close" v-on:click.stop="close_qr_expanded" aria-label="Close expanded QR code">Close ✕</button>
         </div>
