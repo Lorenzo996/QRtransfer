@@ -89,10 +89,10 @@
         <div class="w-full max-w-md px-3 mb-5">
           <div class="flex justify-between items-center text-sm mb-1">
             <label for="frame-seek">QR frame</label>
-            <span>{{transfer_chunk_count ? current_frame_index + 1 : 0}} / {{transfer_chunk_count}}</span>
+            <span>{{transfer_chunk_count ? current_frame_index : 0}} / {{transfer_chunk_count}}</span>
           </div>
           <input id="frame-seek" type="range" class="w-full accent-blue-600"
-            min="0" :max="Math.max(0, transfer_chunk_count - 1)" step="1"
+            min="0" :max="transfer_chunk_count" step="1"
             v-model.number="current_frame_index" v-on:change="seek_frame"
             :disabled="!is_paused || !transfer_chunk_count"
             aria-label="Select the QR frame to resume from" />
@@ -106,10 +106,10 @@
           <div v-if="is_qr_expanded" class="qr-overlay-controls" v-on:click.stop>
             <div class="flex justify-between items-center text-sm mb-1">
               <label for="frame-seek-overlay">QR frame</label>
-              <span>{{transfer_chunk_count ? current_frame_index + 1 : 0}} / {{transfer_chunk_count}}</span>
+              <span>{{transfer_chunk_count ? current_frame_index : 0}} / {{transfer_chunk_count}}</span>
             </div>
             <input id="frame-seek-overlay" type="range" class="w-full accent-blue-400"
-              min="0" :max="Math.max(0, transfer_chunk_count - 1)" step="1"
+              min="0" :max="transfer_chunk_count" step="1"
               v-model.number="current_frame_index" v-on:change="seek_frame"
               :disabled="!is_paused || !transfer_chunk_count"
               aria-label="Select the QR frame to resume from" />
@@ -257,15 +257,24 @@
 
           const seek_frame = () => {
             if (!is_paused.value || !transfer_chunk_count.value || !transfer_data) return;
-            const index = Math.max(0, Math.min(transfer_chunk_count.value - 1, Number(current_frame_index.value) || 0));
-            current_frame_index.value = index;
-            next_chunk_index = index;
-            const start = index * chunk_size;
-            const chunk = transfer_data.subarray(start, start + chunk_size);
+            const frame = Math.max(0, Math.min(transfer_chunk_count.value, Number(current_frame_index.value) || 0));
+            current_frame_index.value = frame;
             qrcode_object.clear();
-            qrcode_object.makeCode(encode_data(index, chunk));
-            transfer_percent.value = Math.floor(((index + 1) / transfer_chunk_count.value) * 100);
-            user_message.value = `Paused at QR ${index + 1}/${transfer_chunk_count.value}. Press Start / Play to continue.`;
+            if (frame === 0) {
+              next_chunk_index = 0;
+              const metadata = { name: selected_file.value.name, chunks: transfer_chunk_count.value };
+              qrcode_object.makeCode(JSON.stringify(metadata));
+              transfer_percent.value = 0;
+              user_message.value = "Paused at metadata frame 0. Press Start / Play to continue from the first data frame.";
+            } else {
+              const chunk_index = frame - 1;
+              next_chunk_index = chunk_index;
+              const start = chunk_index * chunk_size;
+              const chunk = transfer_data.subarray(start, start + chunk_size);
+              qrcode_object.makeCode(encode_data(chunk_index, chunk));
+              transfer_percent.value = Math.floor((frame / transfer_chunk_count.value) * 100);
+              user_message.value = `Paused at QR frame ${frame}/${transfer_chunk_count.value}. Press Start / Play to continue.`;
+            }
           };
 
           const stop_transfer = () => {
@@ -362,7 +371,7 @@
                 if (!(await wait_until_playing())) return;
                 if (!(await wait_while_playing(50))) return;
                 const index = next_chunk_index;
-                current_frame_index.value = index;
+                current_frame_index.value = index + 1;
                 const start = index * chunk_size;
                 const chunk = transfer_data.subarray(start, start + chunk_size);
                 qrcode_object.clear();
