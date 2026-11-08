@@ -16,10 +16,13 @@
       .mode-tabs { display: flex; justify-content: center; gap: .5rem; border-bottom: 1px solid #d1d5db; margin: 0 auto 1rem; padding: .75rem 1rem 0; }
       .mode-tab { padding: .6rem 1rem; border: 1px solid #9ca3af; border-bottom: 0; border-radius: .4rem .4rem 0 0; background: #f3f4f6; }
       .mode-tab[aria-selected="true"] { background: #fff; font-weight: 600; }
+      #qrcode { display: flex; justify-content: center; width: 100%; box-sizing: border-box; padding: 0 1rem calc(32px + env(safe-area-inset-bottom)); scroll-margin-bottom: 32px; }
+      #qrcode canvas, #qrcode img { display: block; width: clamp(160px, min(70vw, 38vh), 360px) !important; height: auto !important; }
       @media (max-width: 480px) {
         .coverage-grid { grid-auto-columns: 2px; }
         .coverage-tick { height: 12px; }
         #videoElement { min-height: 200px; max-height: 55vh; }
+        #qrcode canvas, #qrcode img { width: clamp(144px, min(76vw, 34vh), 320px) !important; }
       }
     </style>
   </head>
