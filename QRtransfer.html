@@ -65,7 +65,7 @@
             class="p-2 border-2 border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
             Pause
           </button>
-          <button v-on:click="stop_transfer" :disabled="!is_transferring"
+          <button v-on:click="stop_transfer" :disabled="!selected_file"
             class="p-2 border-2 border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
             Stop
           </button>
@@ -231,6 +231,11 @@
           const start_transfer = async () => {
             if (is_transferring.value || !selected_file.value) return;
             if (is_paused.value && (transfer_data || transfer_preparing)) {
+              if (transfer_data && next_chunk_index >= transfer_chunk_count.value) {
+                next_chunk_index = 0;
+                current_frame_index.value = 0;
+                transfer_percent.value = 0;
+              }
               is_paused.value = false;
               is_transferring.value = true;
               user_message.value = `Resuming Chunk ${next_chunk_index}/${transfer_chunk_count.value} ...`;
@@ -275,7 +280,15 @@
               user_message.value = "Starting data transfer in a few seconds ...";
               if (!(await wait_while_playing(1000))) return;
 
-              while (next_chunk_index < transfer_chunk_count.value && session === transfer_session) {
+              while (session === transfer_session) {
+                if (next_chunk_index >= transfer_chunk_count.value) {
+                  is_transferring.value = false;
+                  is_paused.value = true;
+                  transfer_percent.value = 100;
+                  user_message.value = "Transfer complete. Paused at the final QR frame. Press Stop to finish or seek to another frame.";
+                  if (!(await wait_until_playing())) return;
+                  continue;
+                }
                 if (!(await wait_until_playing())) return;
                 if (!(await wait_while_playing(50))) return;
                 const index = next_chunk_index;
@@ -289,10 +302,6 @@
                 transfer_percent.value = Math.floor((next_chunk_index / transfer_chunk_count.value) * 100);
               }
 
-              if (session === transfer_session) {
-                user_message.value = "Data Transfer Complete";
-                stop_transfer();
-              }
             } catch (error) {
               if (session === transfer_session) {
                 console.error("Error during transfer:", error);
