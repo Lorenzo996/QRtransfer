@@ -12,9 +12,11 @@
       .coverage-tick.received { background: #16a34a; }
       .coverage-tick.missing { background: #dc2626; }
       .coverage-tick.neutral { background: #d1d5db; }
+      #videoElement { display: block; width: 100%; max-width: 640px; min-height: 220px; max-height: 60vh; margin: 0 auto 1rem; background: #111827; object-fit: contain; }
       @media (max-width: 480px) {
         .coverage-grid { grid-auto-columns: 2px; }
         .coverage-tick { height: 12px; }
+        #videoElement { min-height: 200px; max-height: 55vh; }
       }
     </style>
   </head>
@@ -26,6 +28,7 @@
       >
         <div class="text-xl my-4">Data Receiver Mode</div>
         <div class="text-sm mb-4">{{user_message}}</div>
+        <video id="videoElement" muted autoplay playsinline></video>
         <section class="w-full max-w-2xl px-3 mb-4" aria-label="Copertura dei blocchi">
           <div class="flex justify-between items-center text-sm mb-2">
             <span>{{received_count}} / {{has_valid_metadata ? file_metadata.chunks : '—'}} ricevuti</span>
@@ -59,7 +62,6 @@
         >
           Stop Receiver
         </button>
-        <video id="videoElement" muted autoplay playsinline></video>
       </div>
     </div>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -128,6 +130,10 @@
           };
 
           const start_receiver = async () => {
+            if (!videoElement?.srcObject || !context || !canvas?.width || !canvas?.height) {
+              user_message.value = "La fotocamera non è pronta. Controlla i permessi del browser e ricarica la pagina.";
+              return;
+            }
             decoded_chunks.value = {};
             Object.keys(file_metadata).forEach((key) => delete file_metadata[key]);
             is_receiving.value = true;
@@ -169,7 +175,7 @@
                 console.error("Error in Loop: ", error);
               }
               if (!is_receiving.value) {
-                Object.assign(file_metadata, {});
+                Object.keys(file_metadata).forEach((key) => delete file_metadata[key]);
                 decoded_chunks.value = {};
                 user_message.value = "Click receive button to start receiving";
                 return true;
@@ -190,15 +196,27 @@
           onMounted(async () => {
             console.log("Application Initialized ...");
             videoElement = document.getElementById("videoElement");
-            videoElement.srcObject = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: "environment" },
-            });
-            canvas = document.createElement("canvas");
-            context = canvas.getContext("2d");
-            await new Promise((r) => setTimeout(r, 2000));
-            canvas.height = videoElement.videoHeight;
-            canvas.width = videoElement.videoWidth;
-            context.drawImage(videoElement, 0, 0);
+            try {
+              if (!navigator.mediaDevices?.getUserMedia) {
+                throw new Error("Camera access is unavailable in this browser or page context.");
+              }
+              videoElement.srcObject = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment" },
+              });
+              await videoElement.play();
+              canvas = document.createElement("canvas");
+              context = canvas.getContext("2d");
+              await new Promise((resolve) => {
+                if (videoElement.readyState >= 2) resolve();
+                else videoElement.addEventListener("loadedmetadata", resolve, { once: true });
+              });
+              canvas.height = videoElement.videoHeight;
+              canvas.width = videoElement.videoWidth;
+              context.drawImage(videoElement, 0, 0);
+            } catch (error) {
+              console.error("Unable to start camera:", error);
+              user_message.value = "Impossibile accedere alla fotocamera. Controlla i permessi del browser e ricarica la pagina.";
+            }
           });
 
           return {

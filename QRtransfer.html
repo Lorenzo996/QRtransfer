@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>QR Transfer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .coverage-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+      .coverage-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(2px, 1fr); gap: 1px; min-width: min(100%, 320px); }
+      .coverage-tick { height: 14px; min-width: 2px; border-radius: 1px; }
+      .coverage-tick.received { background: #16a34a; }
+      .coverage-tick.missing { background: #dc2626; }
+      #videoElement { display: block; width: 100%; max-width: 640px; min-height: 220px; max-height: 60vh; margin: 0 auto 1rem; background: #111827; object-fit: contain; }
+      .mode-tabs { display: flex; justify-content: center; gap: .5rem; border-bottom: 1px solid #d1d5db; margin: 0 auto 1rem; padding: .75rem 1rem 0; }
+      .mode-tab { padding: .6rem 1rem; border: 1px solid #9ca3af; border-bottom: 0; border-radius: .4rem .4rem 0 0; background: #f3f4f6; }
+      .mode-tab[aria-selected="true"] { background: #fff; font-weight: 600; }
+      @media (max-width: 480px) {
+        .coverage-grid { grid-auto-columns: 2px; }
+        .coverage-tick { height: 12px; }
+        #videoElement { min-height: 200px; max-height: 55vh; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="mode-tabs" role="tablist" aria-label="Modalità trasferimento">
+      <button id="send-tab" class="mode-tab" role="tab" aria-selected="true" aria-controls="send-panel" onclick="showTransferTab('send')">Send</button>
+      <button id="receive-tab" class="mode-tab" role="tab" aria-selected="false" aria-controls="receive-panel" onclick="showTransferTab('receive')">Receive</button>
+    </header>
+    <main>
+      <section id="send-panel" role="tabpanel" aria-labelledby="send-tab">
+        <div id="sender-app">
+      <div
+        class="flex flex-col items-start w-full items-center justify-center align-middle"
+      >
+        <div class="text-xl my-4">Data Sender Mode</div>
+        <div class="text-sm mb-4">{{user_message}}</div>
+        <div class="w-1/2 mb-4">
+          <input
+            class="block w-full text-sm text-gray-900 border border-gray-300 cursor-pointer bg-gray-50 focus:outline-none"
+            id="file_input"
+            type="file"
+          />
+        </div>
+        <button
+          v-if="!is_transferring"
+          v-on:click="start_transfer"
+          class="mb-6 p-1 border-2 border-gray-500"
+        >
+          Start Transfer
+        </button>
+        <button
+          v-else
+          v-on:click="stop_transfer"
+          class="mb-6 p-1 border-2 border-gray-500"
+        >
+          Stop Transfer
+        </button>
+        <div id="qrcode" class=""></div>
+      </div>
+    </div>
+      </section>
+      <section id="receive-panel" role="tabpanel" aria-labelledby="receive-tab" hidden>
+        <div id="receiver-app">
+      <div
+        class="flex flex-col items-start w-full items-center justify-center align-middle"
+      >
+        <div class="text-xl my-4">Data Receiver Mode</div>
+        <div class="text-sm mb-4">{{user_message}}</div>
+        <video id="videoElement" muted autoplay playsinline></video>
+        <section class="w-full max-w-2xl px-3 mb-4" aria-label="Copertura dei blocchi">
+          <div class="flex justify-between items-center text-sm mb-2">
+            <span>{{received_count}} / {{has_valid_metadata ? file_metadata.chunks : '—'}} ricevuti</span>
+            <span>{{completion_percent}}%</span>
+          </div>
+          <div v-if="has_valid_metadata" class="coverage-scroll" role="group" aria-label="Stato di ricezione dei blocchi; numeri mostrati da 1">
+            <div class="coverage-grid">
+              <span v-for="tick in coverage_ticks" :key="tick.index" class="coverage-tick"
+                :class="tick.received ? 'received' : 'missing'"
+                :title="`Blocco ${tick.index + 1}: ${tick.received ? 'ricevuto' : 'mancante'}`"
+                :aria-label="`Blocco ${tick.index + 1}: ${tick.received ? 'ricevuto' : 'mancante'}`"></span>
+            </div>
+          </div>
+          <div v-else class="h-3 rounded bg-gray-200" role="status" aria-label="In attesa di metadati validi"></div>
+          <div class="flex gap-4 text-xs mt-2" aria-label="Legenda">
+            <span class="flex items-center gap-1"><i class="inline-block w-3 h-3 rounded-sm bg-green-600"></i>Verde = ricevuto</span>
+            <span class="flex items-center gap-1"><i class="inline-block w-3 h-3 rounded-sm bg-red-600"></i>Rosso = mancante</span>
+          </div>
+        </section>
+        <button
+          v-if="!is_receiving"
+          v-on:click="start_receiver"
+          class="mb-6 p-1 border-2 border-gray-500"
+        >
+          Start Receiver
+        </button>
+        <button
+          v-else
+          v-on:click="stop_receiver"
+          class="mb-6 p-1 border-2 border-gray-500"
+        >
+          Stop Receiver
+        </button>
+      </div>
+    </div>
+      </section>
+    </main>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@latest/dist/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.3/pako.min.js"></script>
+    <script>
+      function showTransferTab(mode) {
+        const sending = mode === "send";
+        document.getElementById("send-panel").hidden = !sending;
+        document.getElementById("receive-panel").hidden = sending;
+        document.getElementById("send-tab").setAttribute("aria-selected", String(sending));
+        document.getElementById("receive-tab").setAttribute("aria-selected", String(!sending));
+      }
+    </script>
+    <script>
+      (() => {
+
+      const { createApp, ref, onMounted } = Vue;
+
+      createApp({
+        setup() {
+          const user_message = ref("Choose file to get started");
+          const is_transferring = ref(false);
+          const chunk_size = 250;
+          let qrcode_object = "";
+
+          const encode_data = (index, input_bytes) => {
+            let encoded_string = String.fromCharCode.apply(null, input_bytes);
+            let utf8Encoder = new TextEncoder();
+            let utf8_bytes = utf8Encoder.encode(encoded_string);
+            let encoded_data = btoa(
+              String.fromCharCode.apply(null, utf8_bytes)
+            );
+            return index + "," + encoded_data;
+          };
+
+          const stop_transfer = () => {
+            is_transferring.value = false;
+            user_message.value = "Choose file to get started";
+          };
+
+          const start_transfer = async () => {
+            let file_input = document.getElementById("file_input");
+            is_transferring.value = true;
+            let file = file_input.files[0];
+            let data_chunks = [];
+            let data_array = pako.gzip(await file.arrayBuffer(), { level: 9 });
+            let total_chunks = Math.ceil(data_array.length / chunk_size);
+            let file_metadata = { name: file.name, chunks: total_chunks };
+            qrcode_object.clear();
+            qrcode_object.makeCode(JSON.stringify(file_metadata));
+            user_message.value = "Starting data transfer in few seconds ...";
+            await new Promise((r) => setTimeout(r, 1000));
+            for (let i = 0; i < total_chunks; i++) {
+              await new Promise((r) => setTimeout(r, 50));
+              let start = i * chunk_size;
+              let chunk = data_array.subarray(start, start + chunk_size);
+              let encoded_data = encode_data(i, chunk);
+              qrcode_object.clear();
+              qrcode_object.makeCode(encoded_data);
+              user_message.value = `Transfering Chunk ${i}/${total_chunks} ...`;
+              if (!is_transferring.value) {
+                user_message.value = "Choose file to get started";
+                qrcode_object.clear();
+                qrcode_object.makeCode("Choose file to get started");
+                break;
+              }
+            }
+            stop_transfer();
+          };
+
+          onMounted(() => {
+            console.log("Application Initialized ...");
+            let lowest_size =
+              Math.min(window.innerWidth, window.innerHeight) / 1.5;
+            qrcode_object = new QRCode("qrcode", {
+              text: "Choose file to get started",
+              width: lowest_size,
+              height: lowest_size,
+              typeNumber: 40,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.M,
+            });
+          });
+
+          return {
+            user_message,
+            start_transfer,
+            stop_transfer,
+            is_transferring,
+          };
+        },
+      }).mount("#sender-app");
+    
+      })();
+    </script>
+    <script>
+      (() => {
+
+      const { createApp, ref, reactive, onMounted, computed } = Vue;
+
+      createApp({
+        setup() {
+          const user_message = ref("Click receive button to start receiving");
+          const decoded_chunks = ref({});
+          const total_chunks = ref(-1);
+          const file_metadata = reactive({});
+          const has_valid_metadata = computed(() => Number.isInteger(file_metadata.chunks) && file_metadata.chunks > 0);
+          const valid_received_indices = computed(() => {
+            if (!has_valid_metadata.value) return [];
+            return Object.keys(decoded_chunks.value)
+              .map(Number)
+              .filter((index) => Number.isInteger(index) && index >= 0 && index < file_metadata.chunks);
+          });
+          const received_count = computed(() => valid_received_indices.value.length);
+          const completion_percent = computed(() => has_valid_metadata.value
+            ? Math.floor((received_count.value / file_metadata.chunks) * 100)
+            : 0);
+          const coverage_ticks = computed(() => {
+            const received = new Set(valid_received_indices.value);
+            return Array.from({ length: file_metadata.chunks }, (_, index) => ({ index, received: received.has(index) }));
+          });
+          const is_receiving = ref(false);
+          let canvas, context, videoElement;
+
+          const decode_data = (input_string) => {
+            const encoded_data = atob(input_string.split(",")[1]);
+            const encoded_array = Array.from(encoded_data, (char) =>
+              char.charCodeAt(0)
+            );
+            const utf8Decoder = new TextDecoder();
+            const output_string = utf8Decoder.decode(
+              new Uint8Array(encoded_array)
+            );
+            const data_array = Array.from(output_string, (char) =>
+              char.charCodeAt(0)
+            );
+            return {
+              index: parseInt(input_string.split(",")[0]),
+              data: data_array,
+            };
+          };
+
+          const download_file = (data, fileName) => {
+            const blob = new Blob([data]);
+            const dummy_element = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            dummy_element.href = url;
+            dummy_element.download = fileName;
+            dummy_element.click();
+            URL.revokeObjectURL(url);
+          };
+
+          const stop_receiver = () => {
+            is_receiving.value = false;
+            decoded_chunks.value = {};
+            Object.keys(file_metadata).forEach((key) => delete file_metadata[key]);
+            user_message.value = "Click receive button to start receiving";
+          };
+
+          const initialize_camera = async () => {
+            try {
+              if (!navigator.mediaDevices?.getUserMedia) {
+                throw new Error("Camera access is unavailable in this browser or page context.");
+              }
+              videoElement.srcObject = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment" },
+              });
+              await videoElement.play();
+              await new Promise((resolve) => {
+                if (videoElement.readyState >= 2) resolve();
+                else videoElement.addEventListener("loadedmetadata", resolve, { once: true });
+              });
+              canvas.width = videoElement.videoWidth;
+              canvas.height = videoElement.videoHeight;
+              context.drawImage(videoElement, 0, 0);
+              return true;
+            } catch (error) {
+              console.error("Unable to start camera:", error);
+              user_message.value = "Impossibile accedere alla fotocamera. Controlla i permessi del browser e ricarica la pagina.";
+              return false;
+            }
+          };
+
+          const start_receiver = async () => {
+            if (!videoElement || !context || !canvas || !(await initialize_camera())) return;
+            decoded_chunks.value = {};
+            Object.keys(file_metadata).forEach((key) => delete file_metadata[key]);
+            is_receiving.value = true;
+            while (!has_valid_metadata.value || received_count.value < file_metadata.chunks) {
+              try {
+                await new Promise((r) => setTimeout(r, 10));
+                context.drawImage(videoElement, 0, 0);
+                image_data = context.getImageData(
+                  0,
+                  0,
+                  canvas.width,
+                  canvas.height
+                );
+                let symbols = await zbarWasm.scanImageData(image_data);
+                if (!symbols || !symbols.length) {
+                  continue;
+                }
+                let decoded_data = symbols[0].decode();
+                if (decoded_data.includes("chunks")) {
+                  const metadata = JSON.parse(decoded_data);
+                  if (Number.isInteger(metadata.chunks) && metadata.chunks > 0) {
+                    const metadata_changed = !has_valid_metadata.value ||
+                      metadata.chunks !== file_metadata.chunks || metadata.name !== file_metadata.name;
+                    if (metadata_changed) {
+                      Object.keys(file_metadata).forEach((key) => delete file_metadata[key]);
+                      decoded_chunks.value = {};
+                      Object.assign(file_metadata, metadata);
+                    }
+                    user_message.value = `Transferring file: ${file_metadata.name}`;
+                  }
+                } else if (decoded_data.split(",").length == 2) {
+                  let raw_data = decode_data(decoded_data);
+                  if (has_valid_metadata.value && Number.isInteger(raw_data.index) && raw_data.index >= 0 && raw_data.index < file_metadata.chunks) {
+                    decoded_chunks.value[raw_data.index] = raw_data.data;
+                  }
+                }
+                window.decoded_chunks = decoded_chunks.value;
+              } catch (error) {
+                console.error("Error in Loop: ", error);
+              }
+              if (!is_receiving.value) {
+                Object.keys(file_metadata).forEach((key) => delete file_metadata[key]);
+                decoded_chunks.value = {};
+                user_message.value = "Click receive button to start receiving";
+                return true;
+              }
+            }
+            user_message.value = "Data Transfer Complete";
+            output_array = [];
+            for (let i = 0; i < file_metadata.chunks; i++) {
+              output_array = output_array.concat(decoded_chunks.value[i]);
+            }
+            let output_unit8array = Uint8Array.from(output_array);
+            window.output_unit8array = output_unit8array;
+            let infalted_array = pako.inflate(window.output_unit8array);
+            download_file(infalted_array, file_metadata.name);
+            stop_receiver();
+          };
+
+          onMounted(() => {
+            console.log("Receiver initialized; camera will start when Receive is used.");
+            videoElement = document.getElementById("videoElement");
+            canvas = document.createElement("canvas");
+            context = canvas.getContext("2d");
+          });
+
+          return {
+            user_message,
+            start_receiver,
+            is_receiving,
+            file_metadata,
+            decoded_chunks,
+            stop_receiver,
+            has_valid_metadata,
+            received_count,
+            completion_percent,
+            coverage_ticks,
+          };
+        },
+      }).mount("#receiver-app");
+    
+      })();
+    </script>
+  </body>
+</html>
