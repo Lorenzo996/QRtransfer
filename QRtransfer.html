@@ -16,8 +16,17 @@
       .mode-tabs { display: flex; justify-content: center; gap: .5rem; border-bottom: 1px solid #d1d5db; margin: 0 auto 1rem; padding: .75rem 1rem 0; }
       .mode-tab { padding: .6rem 1rem; border: 1px solid #9ca3af; border-bottom: 0; border-radius: .4rem .4rem 0 0; background: #f3f4f6; }
       .mode-tab[aria-selected="true"] { background: #fff; font-weight: 600; }
-      #qrcode { display: flex; justify-content: center; width: 100%; box-sizing: border-box; padding: 0 1rem calc(32px + env(safe-area-inset-bottom)); scroll-margin-bottom: 32px; }
+      .qr-stage { display: flex; justify-content: center; width: 100%; box-sizing: border-box; padding: 0 1rem calc(32px + env(safe-area-inset-bottom)); scroll-margin-bottom: 32px; }
+      .qr-code-surface { position: relative; padding: 8px; border-radius: 8px; background: #fff; }
+      #qrcode { display: flex; justify-content: center; align-items: center; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
       #qrcode canvas, #qrcode img { display: block; width: clamp(160px, min(70vw, 38vh), 360px) !important; height: auto !important; }
+      .qr-expand-hint { position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; color: #fff; background: rgb(17 24 39 / 72%); pointer-events: none; }
+      .qr-stage.qr-expanded { position: fixed; inset: 0; z-index: 1100; width: auto; height: 100vh; height: 100dvh; align-items: center; padding: max(56px, calc(env(safe-area-inset-top) + 48px)) 16px max(24px, env(safe-area-inset-bottom)); background: rgb(17 24 39 / 96%); }
+      .qr-expanded .qr-code-surface { padding: 12px; }
+      .qr-expanded #qrcode { cursor: zoom-out; }
+      .qr-expanded #qrcode canvas, .qr-expanded #qrcode img { width: min(88vw, 78vh, 640px) !important; max-width: calc(100vw - 56px); }
+      .qr-expanded .qr-expand-hint { display: none; }
+      .qr-close { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); padding: 8px 12px; border: 1px solid rgb(255 255 255 / 50%); border-radius: 6px; color: #fff; background: rgb(31 41 55 / 90%); }
       @media (max-width: 480px) {
         .coverage-grid { grid-auto-columns: 2px; }
         .coverage-tick { height: 12px; }
@@ -88,7 +97,18 @@
             aria-label="Select the QR frame to resume from" />
           <div class="text-xs text-gray-600">Pause the transfer to move between QR frames.</div>
         </div>
-        <div id="qrcode" class=""></div>
+        <div class="qr-stage" :class="{ 'qr-expanded': is_qr_expanded }" v-on:click.self="close_qr_expanded" v-on:keydown.esc.window="close_qr_expanded">
+          <div class="qr-code-surface">
+            <button id="qrcode" type="button" :aria-label="is_qr_expanded ? 'Close expanded QR code' : 'Expand QR code'" :aria-expanded="is_qr_expanded ? 'true' : 'false'"
+              v-on:click="toggle_qr_expanded"></button>
+            <span class="qr-expand-hint" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3" />
+              </svg>
+            </span>
+          </div>
+          <button v-if="is_qr_expanded" type="button" class="qr-close" v-on:click.stop="close_qr_expanded" aria-label="Close expanded QR code">Close ✕</button>
+        </div>
       </div>
     </div>
       </section>
@@ -163,6 +183,7 @@
           const selected_file = ref(null);
           const transfer_percent = ref(0);
           const current_frame_index = ref(0);
+          const is_qr_expanded = ref(false);
           const chunk_size = 250;
           let qrcode_object = "";
           let transfer_data = null;
@@ -179,6 +200,14 @@
               String.fromCharCode.apply(null, utf8_bytes)
             );
             return index + "," + encoded_data;
+          };
+
+          const toggle_qr_expanded = () => {
+            is_qr_expanded.value = !is_qr_expanded.value;
+          };
+
+          const close_qr_expanded = () => {
+            is_qr_expanded.value = false;
           };
 
           const select_file = (event) => {
@@ -340,8 +369,8 @@
               Math.min(window.innerWidth, window.innerHeight) / 1.5;
             qrcode_object = new QRCode("qrcode", {
               text: "Choose file to get started",
-              width: lowest_size,
-              height: lowest_size,
+              width: Math.max(512, lowest_size),
+              height: Math.max(512, lowest_size),
               typeNumber: 40,
               colorDark: "#000000",
               colorLight: "#ffffff",
@@ -362,8 +391,11 @@
             transfer_percent,
             transfer_chunk_count,
             current_frame_index,
+            is_qr_expanded,
             select_file,
             seek_frame,
+            toggle_qr_expanded,
+            close_qr_expanded,
           };
         },
       }).mount("#sender-app");
