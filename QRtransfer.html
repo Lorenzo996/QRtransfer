@@ -70,6 +70,18 @@
             Stop
           </button>
         </div>
+        <div class="w-full max-w-md px-3 mb-5">
+          <div class="flex justify-between items-center text-sm mb-1">
+            <label for="frame-seek">QR frame</label>
+            <span>{{transfer_chunk_count ? current_frame_index + 1 : 0}} / {{transfer_chunk_count}}</span>
+          </div>
+          <input id="frame-seek" type="range" class="w-full accent-blue-600"
+            min="0" :max="Math.max(0, transfer_chunk_count - 1)" step="1"
+            v-model.number="current_frame_index" v-on:change="seek_frame"
+            :disabled="!is_paused || !transfer_chunk_count"
+            aria-label="Select the QR frame to resume from" />
+          <div class="text-xs text-gray-600">Pause the transfer to move between QR frames.</div>
+        </div>
         <div id="qrcode" class=""></div>
       </div>
     </div>
@@ -144,6 +156,7 @@
           const is_paused = ref(false);
           const selected_file = ref(null);
           const transfer_percent = ref(0);
+          const current_frame_index = ref(0);
           const chunk_size = 250;
           let qrcode_object = "";
           let transfer_data = null;
@@ -171,6 +184,7 @@
             transfer_preparing = false;
             is_paused.value = false;
             transfer_percent.value = 0;
+            current_frame_index.value = 0;
             user_message.value = selected_file.value ? `Ready to send: ${selected_file.value.name}` : "Choose file to get started";
           };
 
@@ -179,6 +193,19 @@
             is_transferring.value = false;
             is_paused.value = true;
             user_message.value = "Transfer paused. Press Start / Play to resume.";
+          };
+
+          const seek_frame = () => {
+            if (!is_paused.value || !transfer_chunk_count || !transfer_data) return;
+            const index = Math.max(0, Math.min(transfer_chunk_count - 1, Number(current_frame_index.value) || 0));
+            current_frame_index.value = index;
+            next_chunk_index = index;
+            const start = index * chunk_size;
+            const chunk = transfer_data.subarray(start, start + chunk_size);
+            qrcode_object.clear();
+            qrcode_object.makeCode(encode_data(index, chunk));
+            transfer_percent.value = Math.floor(((index + 1) / transfer_chunk_count) * 100);
+            user_message.value = `Paused at QR ${index + 1}/${transfer_chunk_count}. Press Start / Play to continue.`;
           };
 
           const stop_transfer = () => {
@@ -191,6 +218,7 @@
             next_chunk_index = 0;
             transfer_preparing = false;
             transfer_percent.value = 0;
+            current_frame_index.value = 0;
             const file_input = document.getElementById("file_input");
             if (file_input) file_input.value = "";
             user_message.value = "Choose file to get started";
@@ -220,6 +248,7 @@
                 if (session !== transfer_session) return;
                 transfer_chunk_count = Math.ceil(transfer_data.length / chunk_size);
                 next_chunk_index = 0;
+                current_frame_index.value = 0;
               }
               transfer_preparing = false;
 
@@ -250,6 +279,7 @@
                 if (!(await wait_until_playing())) return;
                 if (!(await wait_while_playing(50))) return;
                 const index = next_chunk_index;
+                current_frame_index.value = index;
                 const start = index * chunk_size;
                 const chunk = transfer_data.subarray(start, start + chunk_size);
                 qrcode_object.clear();
@@ -297,7 +327,9 @@
             is_paused,
             selected_file,
             transfer_percent,
+            current_frame_index,
             select_file,
+            seek_frame,
           };
         },
       }).mount("#sender-app");
