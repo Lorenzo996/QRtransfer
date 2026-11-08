@@ -41,22 +41,35 @@
             class="block w-full text-sm text-gray-900 border border-gray-300 cursor-pointer bg-gray-50 focus:outline-none"
             id="file_input"
             type="file"
+            v-on:change="select_file"
+            :disabled="is_transferring || is_paused"
           />
         </div>
-        <button
-          v-if="!is_transferring"
-          v-on:click="start_transfer"
-          class="mb-6 p-1 border-2 border-gray-500"
-        >
-          Start Transfer
-        </button>
-        <button
-          v-else
-          v-on:click="stop_transfer"
-          class="mb-6 p-1 border-2 border-gray-500"
-        >
-          Stop Transfer
-        </button>
+        <div class="w-full max-w-md px-3 mb-4">
+          <div class="flex justify-between text-sm mb-1">
+            <span class="truncate pr-3">{{selected_file ? selected_file.name : 'Nessun file selezionato'}}</span>
+            <span>{{transfer_percent}}%</span>
+          </div>
+          <div class="h-3 w-full rounded bg-gray-200 overflow-hidden" role="progressbar"
+            :aria-valuenow="transfer_percent" aria-valuemin="0" aria-valuemax="100"
+            :aria-label="`Avanzamento trasmissione: ${transfer_percent}%`">
+            <div class="h-full bg-blue-600 transition-all" :style="{ width: transfer_percent + '%' }"></div>
+          </div>
+        </div>
+        <div class="flex gap-2 mb-6">
+          <button v-on:click="start_transfer" :disabled="!selected_file || is_transferring"
+            class="p-2 border-2 border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
+            Start / Play
+          </button>
+          <button v-on:click="pause_transfer" :disabled="!is_transferring"
+            class="p-2 border-2 border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
+            Pause
+          </button>
+          <button v-on:click="stop_transfer" :disabled="!is_transferring"
+            class="p-2 border-2 border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
+            Stop
+          </button>
+        </div>
         <div id="qrcode" class=""></div>
       </div>
     </div>
@@ -128,8 +141,16 @@
         setup() {
           const user_message = ref("Choose file to get started");
           const is_transferring = ref(false);
+          const is_paused = ref(false);
+          const selected_file = ref(null);
+          const transfer_percent = ref(0);
           const chunk_size = 250;
           let qrcode_object = "";
+          let transfer_data = null;
+          let transfer_chunk_count = 0;
+          let next_chunk_index = 0;
+          let transfer_session = 0;
+          let transfer_preparing = false;
 
           const encode_data = (index, input_bytes) => {
             let encoded_string = String.fromCharCode.apply(null, input_bytes);
@@ -141,39 +162,115 @@
             return index + "," + encoded_data;
           };
 
-          const stop_transfer = () => {
+          const select_file = (event) => {
+            transfer_session++;
+            selected_file.value = event.target.files?.[0] || null;
+            transfer_data = null;
+            transfer_chunk_count = 0;
+            next_chunk_index = 0;
+            transfer_preparing = false;
+            is_paused.value = false;
+            transfer_percent.value = 0;
+            user_message.value = selected_file.value ? `Ready to send: ${selected_file.value.name}` : "Choose file to get started";
+          };
+
+          const pause_transfer = () => {
+            if (!is_transferring.value) return;
             is_transferring.value = false;
+            is_paused.value = true;
+            user_message.value = "Transfer paused. Press Start / Play to resume.";
+          };
+
+          const stop_transfer = () => {
+            transfer_session++;
+            is_transferring.value = false;
+            is_paused.value = false;
+            selected_file.value = null;
+            transfer_data = null;
+            transfer_chunk_count = 0;
+            next_chunk_index = 0;
+            transfer_preparing = false;
+            transfer_percent.value = 0;
+            const file_input = document.getElementById("file_input");
+            if (file_input) file_input.value = "";
             user_message.value = "Choose file to get started";
+            if (qrcode_object) {
+              qrcode_object.clear();
+              qrcode_object.makeCode("Choose file to get started");
+            }
           };
 
           const start_transfer = async () => {
-            let file_input = document.getElementById("file_input");
+            if (is_transferring.value || !selected_file.value) return;
+            if (is_paused.value && (transfer_data || transfer_preparing)) {
+              is_paused.value = false;
+              is_transferring.value = true;
+              user_message.value = `Resuming Chunk ${next_chunk_index}/${transfer_chunk_count} ...`;
+              return;
+            }
+
+            const session = ++transfer_session;
             is_transferring.value = true;
-            let file = file_input.files[0];
-            let data_chunks = [];
-            let data_array = pako.gzip(await file.arrayBuffer(), { level: 9 });
-            let total_chunks = Math.ceil(data_array.length / chunk_size);
-            let file_metadata = { name: file.name, chunks: total_chunks };
-            qrcode_object.clear();
-            qrcode_object.makeCode(JSON.stringify(file_metadata));
-            user_message.value = "Starting data transfer in few seconds ...";
-            await new Promise((r) => setTimeout(r, 1000));
-            for (let i = 0; i < total_chunks; i++) {
-              await new Promise((r) => setTimeout(r, 50));
-              let start = i * chunk_size;
-              let chunk = data_array.subarray(start, start + chunk_size);
-              let encoded_data = encode_data(i, chunk);
+            is_paused.value = false;
+            transfer_preparing = true;
+            try {
+              if (!transfer_data) {
+                const file = selected_file.value;
+                transfer_data = pako.gzip(await file.arrayBuffer(), { level: 9 });
+                if (session !== transfer_session) return;
+                transfer_chunk_count = Math.ceil(transfer_data.length / chunk_size);
+                next_chunk_index = 0;
+              }
+              transfer_preparing = false;
+
+              const wait_until_playing = async () => {
+                while (is_paused.value && session === transfer_session) {
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                return session === transfer_session;
+              };
+              const wait_while_playing = async (duration) => {
+                let remaining = duration;
+                while (remaining > 0 && session === transfer_session) {
+                  if (!(await wait_until_playing())) return false;
+                  const step = Math.min(50, remaining);
+                  await new Promise((resolve) => setTimeout(resolve, step));
+                  if (is_transferring.value) remaining -= step;
+                }
+                return session === transfer_session;
+              };
+
+              const file_metadata = { name: selected_file.value.name, chunks: transfer_chunk_count };
               qrcode_object.clear();
-              qrcode_object.makeCode(encoded_data);
-              user_message.value = `Transfering Chunk ${i}/${total_chunks} ...`;
-              if (!is_transferring.value) {
-                user_message.value = "Choose file to get started";
+              qrcode_object.makeCode(JSON.stringify(file_metadata));
+              user_message.value = "Starting data transfer in a few seconds ...";
+              if (!(await wait_while_playing(1000))) return;
+
+              while (next_chunk_index < transfer_chunk_count && session === transfer_session) {
+                if (!(await wait_until_playing())) return;
+                if (!(await wait_while_playing(50))) return;
+                const index = next_chunk_index;
+                const start = index * chunk_size;
+                const chunk = transfer_data.subarray(start, start + chunk_size);
                 qrcode_object.clear();
-                qrcode_object.makeCode("Choose file to get started");
-                break;
+                qrcode_object.makeCode(encode_data(index, chunk));
+                user_message.value = `Transferring Chunk ${index + 1}/${transfer_chunk_count} ...`;
+                next_chunk_index++;
+                transfer_percent.value = Math.floor((next_chunk_index / transfer_chunk_count) * 100);
+              }
+
+              if (session === transfer_session) {
+                user_message.value = "Data Transfer Complete";
+                stop_transfer();
+              }
+            } catch (error) {
+              if (session === transfer_session) {
+                console.error("Error during transfer:", error);
+                transfer_preparing = false;
+                is_transferring.value = false;
+                user_message.value = "Unable to start the transfer.";
               }
             }
-            stop_transfer();
           };
 
           onMounted(() => {
@@ -194,8 +291,13 @@
           return {
             user_message,
             start_transfer,
+            pause_transfer,
             stop_transfer,
             is_transferring,
+            is_paused,
+            selected_file,
+            transfer_percent,
+            select_file,
           };
         },
       }).mount("#sender-app");
