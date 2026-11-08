@@ -58,7 +58,7 @@
             <div class="h-full bg-blue-600 transition-all" :style="{ width: transfer_percent + '%' }"></div>
           </div>
         </div>
-        <div class="flex gap-2 mb-6">
+        <div class="flex flex-wrap items-center gap-2 mb-6">
           <button v-on:click="start_transfer" :disabled="!selected_file || is_transferring"
             class="p-2 border-2 border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
             Start / Play
@@ -71,6 +71,10 @@
             class="p-2 border-2 border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
             Stop
           </button>
+          <label class="flex items-center gap-2 px-2 text-sm whitespace-nowrap">
+            <input type="checkbox" v-model="repeat_enabled" v-on:change="toggle_repeat" />
+            Repeat
+          </label>
         </div>
         <div class="w-full max-w-md px-3 mb-5">
           <div class="flex justify-between items-center text-sm mb-1">
@@ -155,6 +159,7 @@
           const user_message = ref("Choose file to get started");
           const is_transferring = ref(false);
           const is_paused = ref(false);
+          const repeat_enabled = ref(false);
           const selected_file = ref(null);
           const transfer_percent = ref(0);
           const current_frame_index = ref(0);
@@ -194,6 +199,12 @@
             is_transferring.value = false;
             is_paused.value = true;
             user_message.value = "Transfer paused. Press Start / Play to resume.";
+          };
+
+          const toggle_repeat = () => {
+            if (repeat_enabled.value && is_paused.value && transfer_data && next_chunk_index >= transfer_chunk_count.value) {
+              start_transfer();
+            }
           };
 
           const seek_frame = () => {
@@ -283,6 +294,16 @@
 
               while (session === transfer_session) {
                 if (next_chunk_index >= transfer_chunk_count.value) {
+                  if (repeat_enabled.value) {
+                    next_chunk_index = 0;
+                    current_frame_index.value = 0;
+                    transfer_percent.value = 0;
+                    qrcode_object.clear();
+                    qrcode_object.makeCode(JSON.stringify(file_metadata));
+                    user_message.value = "Restarting transfer from the first QR frame ...";
+                    if (!(await wait_while_playing(1000))) return;
+                    continue;
+                  }
                   is_transferring.value = false;
                   is_paused.value = true;
                   transfer_percent.value = 100;
@@ -335,6 +356,8 @@
             stop_transfer,
             is_transferring,
             is_paused,
+            repeat_enabled,
+            toggle_repeat,
             selected_file,
             transfer_percent,
             transfer_chunk_count,
