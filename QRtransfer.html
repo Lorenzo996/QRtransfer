@@ -102,8 +102,15 @@
         </div>
         <div class="w-full max-w-md px-3 mb-5">
           <div class="flex justify-between items-center text-sm mb-1">
-            <label for="frame-seek">QR frame</label>
-            <span>{{transfer_chunk_count ? current_frame_index : 0}} / {{transfer_chunk_count}}</span>
+            <label for="frame-number">QR frame</label>
+            <span class="flex items-center gap-1">
+              <input id="frame-number" type="number" class="w-16 p-1 border border-gray-300 rounded text-center text-gray-900"
+                min="0" :max="transfer_chunk_count" step="1"
+                v-model.number="current_frame_index" v-on:change="seek_frame"
+                :disabled="!is_paused || !transfer_chunk_count"
+                aria-label="Current QR frame number" />
+              <span>/ {{transfer_chunk_count}}</span>
+            </span>
           </div>
           <input id="frame-seek" type="range" class="w-full accent-blue-600"
             min="0" :max="transfer_chunk_count" step="1"
@@ -119,8 +126,15 @@
           </div>
           <div v-if="is_qr_expanded" class="qr-overlay-controls" v-on:click.stop>
             <div class="flex justify-between items-center text-sm mb-1">
-              <label for="frame-seek-overlay">QR frame</label>
-              <span>{{transfer_chunk_count ? current_frame_index : 0}} / {{transfer_chunk_count}}</span>
+              <label for="frame-number-overlay">QR frame</label>
+              <span class="flex items-center gap-1">
+                <input id="frame-number-overlay" type="number" class="w-16 p-1 border border-gray-300 rounded text-center text-gray-900"
+                  min="0" :max="transfer_chunk_count" step="1"
+                  v-model.number="current_frame_index" v-on:change="seek_frame"
+                  :disabled="!is_paused || !transfer_chunk_count"
+                  aria-label="Current QR frame number" />
+                <span>/ {{transfer_chunk_count}}</span>
+              </span>
             </div>
             <input id="frame-seek-overlay" type="range" class="w-full accent-blue-400"
               min="0" :max="transfer_chunk_count" step="1"
