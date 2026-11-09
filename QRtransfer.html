@@ -21,9 +21,12 @@
       #qrcode { display: flex; justify-content: center; align-items: center; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
       #qrcode canvas, #qrcode img { display: block; width: clamp(160px, min(70vw, 38vh), 360px) !important; height: auto !important; }
       .qr-stage.qr-expanded { position: fixed; inset: 0; z-index: 1100; width: auto; height: 100vh; height: 100dvh; flex-direction: column; justify-content: flex-start; align-items: center; gap: 12px; overflow-y: auto; padding: max(56px, calc(env(safe-area-inset-top) + 48px)) 16px max(16px, env(safe-area-inset-bottom)); background: rgb(17 24 39 / 96%); }
-      .qr-expanded .qr-code-surface { padding: 12px; }
+      .qr-expanded .qr-code-surface { padding: 12px; flex: 0 0 auto; }
       .qr-expanded #qrcode { cursor: zoom-out; }
-      .qr-expanded #qrcode canvas, .qr-expanded #qrcode img { width: clamp(144px, min(88vw, calc(100dvh - 260px)), 640px) !important; max-width: calc(100vw - 56px); }
+      .qr-expanded #qrcode canvas, .qr-expanded #qrcode img { width: clamp(144px, min(calc(100vw - 56px), calc(100vh - 220px)), 1200px) !important; height: auto !important; max-width: calc(100vw - 56px); }
+      @supports (height: 100dvh) {
+        .qr-expanded #qrcode canvas, .qr-expanded #qrcode img { width: clamp(144px, min(calc(100vw - 56px), calc(100dvh - 220px)), 1200px) !important; }
+      }
       .qr-overlay-controls { width: min(100%, 440px); color: #fff; }
       .qr-overlay-controls .qr-overlay-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
       .qr-overlay-controls button { border-color: rgb(255 255 255 / 65%); color: #fff; background: rgb(31 41 55 / 90%); }
@@ -84,6 +87,17 @@
           <label class="flex items-center gap-2 px-2 text-sm whitespace-nowrap">
             <input type="checkbox" v-model="repeat_enabled" v-on:change="toggle_repeat" />
             Repeat
+          </label>
+          <label class="flex items-center gap-2 px-2 text-sm whitespace-nowrap">
+            <span>Frame duration</span>
+            <select v-model.number="frame_duration_ms" class="p-2 border border-gray-400 rounded bg-white text-gray-900"
+              aria-label="QR frame duration">
+              <option :value="50">50 ms (20 QR/s)</option>
+              <option :value="100">100 ms (10 QR/s)</option>
+              <option :value="200">200 ms (5 QR/s)</option>
+              <option :value="500">500 ms (2 QR/s)</option>
+              <option :value="1000">1000 ms (1 QR/s)</option>
+            </select>
           </label>
         </div>
         <div class="w-full max-w-md px-3 mb-5">
@@ -195,6 +209,7 @@
           const is_transferring = ref(false);
           const is_paused = ref(false);
           const repeat_enabled = ref(false);
+          const frame_duration_ms = ref(50);
           const selected_file = ref(null);
           const transfer_percent = ref(0);
           const current_frame_index = ref(0);
@@ -365,7 +380,7 @@
                   continue;
                 }
                 if (!(await wait_until_playing())) return;
-                if (!(await wait_while_playing(50))) return;
+                if (!(await wait_while_playing(frame_duration_ms.value))) return;
                 const index = next_chunk_index;
                 current_frame_index.value = index + 1;
                 const start = index * chunk_size;
@@ -410,6 +425,7 @@
             is_transferring,
             is_paused,
             repeat_enabled,
+            frame_duration_ms,
             toggle_repeat,
             selected_file,
             transfer_percent,
