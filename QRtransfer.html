@@ -165,6 +165,10 @@
         class="flex flex-col items-start w-full items-center justify-center align-middle"
       >
         <div class="text-sm mb-4">{{user_message}}</div>
+        <div v-if="has_valid_metadata" class="w-full max-w-2xl px-3 mb-3 text-sm break-words" role="status">
+          <span class="font-semibold">File in ricezione:</span>
+          <span>{{file_metadata.name}}</span>
+        </div>
         <video id="videoElement" muted autoplay playsinline></video>
         <section class="w-full max-w-2xl px-3 mb-4" aria-label="Copertura dei blocchi">
           <div class="flex justify-between items-center text-sm mb-2">
