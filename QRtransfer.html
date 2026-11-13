@@ -103,13 +103,13 @@
       #sender-app > div {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(280px, 440px);
-        grid-template-areas: "status status" "file qr" "progress qr" "controls qr" "seek qr";
+        grid-template-areas: "status status" "file qr" "chunk qr" "progress qr" "controls qr" "seek qr";
         align-items: center;
         gap: 16px 28px;
         padding: clamp(20px, 4vw, 38px);
       }
-      #sender-app > div > div:first-child { grid-area: status; margin: 0; color: #536179; font-size: .94rem; }
-      #sender-app > div > div:nth-child(2) { grid-area: file; width: 100%; margin: 0; }
+      #sender-app > div > .sender-status { grid-area: status; margin: 0; color: #536179; font-size: .94rem; }
+      #sender-app > div > .sender-file-picker { grid-area: file; width: 100%; margin: 0; }
       #file_input {
         width: 100%;
         min-height: 52px;
@@ -130,12 +130,16 @@
         font-weight: 650;
         cursor: pointer;
       }
-      #sender-app > div > div:nth-child(3) { grid-area: progress; width: 100%; max-width: none; margin: 0; padding: 0; color: var(--muted); }
+      #sender-app > div > .sender-chunk-setting { grid-area: chunk; width: 100%; margin: 0; color: #475569; }
+      #sender-app > div > .sender-chunk-setting label { display: block; margin-bottom: 6px; font-size: .9rem; font-weight: 650; }
+      #sender-app > div > .sender-chunk-setting input { width: 140px; padding: 8px 10px; }
+      #sender-app > div > .sender-chunk-setting p { margin: 5px 0 0; color: var(--muted); font-size: .78rem; }
+      #sender-app > div > .sender-progress { grid-area: progress; width: 100%; max-width: none; margin: 0; padding: 0; color: var(--muted); }
       #sender-app [role="progressbar"] { height: 10px; border-radius: 999px; background: #e9ebf5; }
       #sender-app [role="progressbar"] > div { border-radius: inherit; background: linear-gradient(90deg, #5b5ce2, #8b5cf6); }
-      #sender-app > div > div:nth-child(4) { grid-area: controls; margin: 0; gap: 8px; }
-      #sender-app > div > div:nth-child(5) { grid-area: seek; width: 100%; max-width: none; margin: 0; padding: 0; color: #46536a; }
-      #sender-app > div > div:nth-child(5) > div:last-child { margin-top: 5px; color: #8a94a8; }
+      #sender-app > div > .sender-controls { grid-area: controls; margin: 0; gap: 8px; }
+      #sender-app > div > .sender-seek { grid-area: seek; width: 100%; max-width: none; margin: 0; padding: 0; color: #46536a; }
+      #sender-app > div > .sender-seek > div:last-child { margin-top: 5px; color: #8a94a8; }
       #sender-app button:not(#qrcode), #receiver-app button:not(.qr-close), .result-dialog-actions button {
         min-height: 42px;
         border: 1px solid #d8deea;
@@ -152,7 +156,7 @@
         box-shadow: 0 6px 16px rgb(30 41 74 / 9%);
       }
       #sender-app button:disabled, #receiver-app button:disabled { cursor: not-allowed; opacity: .42; }
-      #sender-app > div > div:nth-child(4) button:first-child,
+      #sender-app > div > .sender-controls button:first-child,
       .qr-overlay-buttons button:first-child,
       #receiver-app button.mb-6 {
         border-color: transparent;
@@ -160,8 +164,8 @@
         background: linear-gradient(135deg, #5b5ce2, #7958d9);
         box-shadow: 0 5px 13px rgb(91 92 226 / 20%);
       }
-      #sender-app > div > div:nth-child(4) button:nth-child(2), .qr-overlay-buttons button:nth-child(2) { background: #f5f3ff; border-color: #e2dcff; color: #5b4db0; }
-      #sender-app > div > div:nth-child(4) button:nth-child(3), .qr-overlay-buttons button:nth-child(3) { background: #fff7f7; border-color: #f3dddd; color: #a94e5a; }
+      #sender-app > div > .sender-controls button:nth-child(2), .qr-overlay-buttons button:nth-child(2) { background: #f5f3ff; border-color: #e2dcff; color: #5b4db0; }
+      #sender-app > div > .sender-controls button:nth-child(3), .qr-overlay-buttons button:nth-child(3) { background: #fff7f7; border-color: #f3dddd; color: #a94e5a; }
       #sender-app label { color: #475569; }
       #sender-app label:has(select) { flex-wrap: wrap; }
       #sender-app select, #sender-app input[type="number"] {
@@ -175,7 +179,7 @@
         outline: 3px solid rgb(99 102 241 / 30%);
         outline-offset: 2px;
       }
-      #sender-app > div > .qr-stage { grid-area: qr; grid-row: 2 / 6; align-self: stretch; align-items: center; padding: 18px 10px 28px; }
+      #sender-app > div > .qr-stage { grid-area: qr; grid-row: 2 / 7; align-self: stretch; align-items: center; padding: 18px 10px 28px; }
       .qr-code-surface {
         border: 1px solid #e8eaf2;
         border-radius: 22px;
@@ -228,7 +232,7 @@
         main > section[role="tabpanel"] { border-radius: 20px; }
         #sender-app > div {
           grid-template-columns: minmax(0, 1fr);
-          grid-template-areas: "status" "file" "progress" "controls" "seek" "qr";
+          grid-template-areas: "status" "file" "chunk" "progress" "controls" "seek" "qr";
           gap: 15px;
           padding: 20px 16px;
         }
@@ -238,11 +242,11 @@
       }
       @media (max-width: 480px) {
         .mode-tab { min-width: 104px; padding: 9px 16px; }
-        #sender-app > div > div:nth-child(4) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        #sender-app > div > div:nth-child(4) label { grid-column: span 1; padding: 4px; font-size: .82rem; }
-        #sender-app > div > div:nth-child(4) label:has(select) { grid-column: 1 / -1; justify-content: space-between; }
+        #sender-app > div > .sender-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        #sender-app > div > .sender-controls label { grid-column: span 1; padding: 4px; font-size: .82rem; }
+        #sender-app > div > .sender-controls label:has(select) { grid-column: 1 / -1; justify-content: space-between; }
         #sender-app select { max-width: 58%; }
-        #sender-app > div > div:nth-child(5) > div:first-child { align-items: flex-start; }
+        #sender-app > div > .sender-seek > div:first-child { align-items: flex-start; }
         #qrcode canvas, #qrcode img { width: clamp(144px, min(76vw, 34vh), 320px) !important; }
         .qr-code-surface { padding: 12px; border-radius: 17px; }
         .result-dialog { padding: 21px; }
@@ -265,8 +269,8 @@
       <div
         class="flex flex-col items-start w-full items-center justify-center align-middle"
       >
-        <div class="text-sm mb-4">{{user_message}}</div>
-        <div class="w-1/2 mb-4">
+        <div class="sender-status text-sm mb-4">{{user_message}}</div>
+        <div class="sender-file-picker w-1/2 mb-4">
           <input
             class="block w-full text-sm text-gray-900 border border-gray-300 cursor-pointer bg-gray-50 focus:outline-none"
             id="file_input"
@@ -275,7 +279,13 @@
             :disabled="is_transferring || is_paused"
           />
         </div>
-        <div class="w-full max-w-md px-3 mb-4">
+        <div class="sender-chunk-setting">
+          <label for="chunk-size">Dimensione blocco (byte)</label>
+          <input id="chunk-size" type="number" min="1" step="1" v-model.number="chunk_size"
+            :disabled="chunk_size_locked" aria-label="Dimensione blocco in byte" />
+          <p>Rimane modificabile fino al primo avvio della trasmissione.</p>
+        </div>
+        <div class="sender-progress w-full max-w-md px-3 mb-4">
           <div class="flex justify-between text-sm mb-1">
             <span class="truncate pr-3">{{selected_file ? selected_file.name : 'Nessun file selezionato'}}</span>
             <span>{{transfer_percent}}%</span>
@@ -286,7 +296,7 @@
             <div class="h-full bg-blue-600 transition-all" :style="{ width: transfer_percent + '%' }"></div>
           </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2 mb-6">
+        <div class="sender-controls flex flex-wrap items-center gap-2 mb-6">
           <button v-on:click="start_transfer" :disabled="!selected_file || is_transferring"
             class="p-2 border-2 border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
             Start / Play
@@ -315,7 +325,7 @@
             </select>
           </label>
         </div>
-        <div class="w-full max-w-md px-3 mb-5">
+        <div class="sender-seek w-full max-w-md px-3 mb-5">
           <div class="flex justify-between items-center text-sm mb-1">
             <label for="frame-number">QR frame</label>
             <span class="flex items-center gap-1">
@@ -538,7 +548,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
           const transfer_percent = ref(0);
           const current_frame_index = ref(0);
           const is_qr_expanded = ref(false);
-          const chunk_size = 250;
+          const chunk_size = ref(250);
+          const chunk_size_locked = ref(false);
           let qrcode_object = "";
           let transfer_data = null;
           const transfer_chunk_count = ref(0);
@@ -567,6 +578,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
           const select_file = (event) => {
             transfer_session++;
             selected_file.value = event.target.files?.[0] || null;
+            chunk_size_locked.value = false;
             transfer_data = null;
             transfer_chunk_count.value = 0;
             next_chunk_index = 0;
@@ -604,8 +616,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             } else {
               const chunk_index = frame - 1;
               next_chunk_index = chunk_index;
-              const start = chunk_index * chunk_size;
-              const chunk = transfer_data.subarray(start, start + chunk_size);
+              const start = chunk_index * chunk_size.value;
+              const chunk = transfer_data.subarray(start, start + chunk_size.value);
               qrcode_object.makeCode(encode_data(chunk_index, chunk));
               transfer_percent.value = Math.floor((frame / transfer_chunk_count.value) * 100);
               user_message.value = `Paused at QR frame ${frame}/${transfer_chunk_count.value}. Press Start / Play to continue.`;
@@ -617,6 +629,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             is_transferring.value = false;
             is_paused.value = false;
             selected_file.value = null;
+            chunk_size_locked.value = false;
             transfer_data = null;
             transfer_chunk_count.value = 0;
             next_chunk_index = 0;
@@ -634,6 +647,15 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
           const start_transfer = async () => {
             if (is_transferring.value || !selected_file.value) return;
+            if (!chunk_size_locked.value) {
+              const requested_chunk_size = Number(chunk_size.value);
+              if (!Number.isSafeInteger(requested_chunk_size) || requested_chunk_size <= 0) {
+                user_message.value = "La dimensione del blocco deve essere un numero intero positivo di byte.";
+                return;
+              }
+              chunk_size.value = requested_chunk_size;
+              chunk_size_locked.value = true;
+            }
             if (is_paused.value && (transfer_data || transfer_preparing)) {
               if (transfer_data && next_chunk_index >= transfer_chunk_count.value) {
                 next_chunk_index = 0;
@@ -655,7 +677,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 const file = selected_file.value;
                 transfer_data = pako.gzip(await file.arrayBuffer(), { level: 9 });
                 if (session !== transfer_session) return;
-                transfer_chunk_count.value = Math.ceil(transfer_data.length / chunk_size);
+                transfer_chunk_count.value = Math.ceil(transfer_data.length / chunk_size.value);
                 next_chunk_index = 0;
                 current_frame_index.value = 0;
               }
@@ -707,8 +729,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                 if (!(await wait_while_playing(frame_duration_ms.value))) return;
                 const index = next_chunk_index;
                 current_frame_index.value = index + 1;
-                const start = index * chunk_size;
-                const chunk = transfer_data.subarray(start, start + chunk_size);
+                const start = index * chunk_size.value;
+                const chunk = transfer_data.subarray(start, start + chunk_size.value);
                 qrcode_object.clear();
                 qrcode_object.makeCode(encode_data(index, chunk));
                 user_message.value = `Transferring Chunk ${index + 1}/${transfer_chunk_count.value} ...`;
@@ -748,6 +770,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             is_paused,
             repeat_enabled,
             frame_duration_ms,
+            chunk_size,
+            chunk_size_locked,
             toggle_repeat,
             selected_file,
             transfer_percent,
