@@ -151,7 +151,7 @@
               try {
                 await new Promise((r) => setTimeout(r, 10));
                 context.drawImage(videoElement, 0, 0);
-                image_data = context.getImageData(
+                const image_data = context.getImageData(
                   0,
                   0,
                   canvas.width,
@@ -180,10 +180,7 @@
                     decoded_chunks.value[raw_data.index] = raw_data.data;
                   }
                 }
-                window.decoded_chunks = decoded_chunks.value;
-              } catch (error) {
-                console.error("Error in Loop: ", error);
-              }
+              } catch { }
               if (!is_receiving.value) {
                 Object.keys(file_metadata).forEach((key) => delete file_metadata[key]);
                 decoded_chunks.value = {};
@@ -192,19 +189,17 @@
               }
             }
             user_message.value = "Data Transfer Complete";
-            output_array = [];
+            let output_array = [];
             for (let i = 0; i < file_metadata.chunks; i++) {
               output_array = output_array.concat(decoded_chunks.value[i]);
             }
             let output_unit8array = Uint8Array.from(output_array);
-            window.output_unit8array = output_unit8array;
-            let infalted_array = pako.inflate(window.output_unit8array);
+            let infalted_array = pako.inflate(output_unit8array);
             download_file(infalted_array, file_metadata.name);
             stop_receiver();
           };
 
           onMounted(async () => {
-            console.log("Application Initialized ...");
             videoElement = document.getElementById("videoElement");
             try {
               if (!navigator.mediaDevices?.getUserMedia) {
@@ -223,8 +218,7 @@
               canvas.height = videoElement.videoHeight;
               canvas.width = videoElement.videoWidth;
               context.drawImage(videoElement, 0, 0);
-            } catch (error) {
-              console.error("Unable to start camera:", error);
+            } catch {
               user_message.value = "Impossibile accedere alla fotocamera. Controlla i permessi del browser e ricarica la pagina.";
             }
           });
